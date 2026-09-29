@@ -7,7 +7,8 @@
 
 safe::mail_t mail::man;
 thread_pool_util::ThreadPool task_pool;
-bool display_cursor = true;
+// The client draws its own pointer, so never composite the host cursor into the stream.
+bool display_cursor = false;
 
 #ifdef _WIN32
 nvprefs::nvprefs_interface nvprefs_instance;
