@@ -1,0 +1,69 @@
+name: Build Windows installer
+
+# Apollo normally ships Windows builds from its own pipeline that does not exist in the
+# public repository, so this fork builds the installer on GitHub's runners instead of
+# requiring a local MSYS2/C++ toolchain.
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            git
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-cppwinrt
+            mingw-w64-ucrt-x86_64-curl-winssl
+            mingw-w64-ucrt-x86_64-MinHook
+            mingw-w64-ucrt-x86_64-miniupnpc
+            mingw-w64-ucrt-x86_64-nlohmann_json
+            mingw-w64-ucrt-x86_64-nsis
+            mingw-w64-ucrt-x86_64-onevpl
+            mingw-w64-ucrt-x86_64-openssl
+            mingw-w64-ucrt-x86_64-opus
+            mingw-w64-ucrt-x86_64-toolchain
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Node.js path
+        shell: pwsh
+        run: |
+          "NODEJS_PATH=$(Split-Path (Get-Command node).Source -Parent)" >> $env:GITHUB_ENV
+
+      - name: Build
+        env:
+          BRANCH: ${{ github.ref_name }}
+          BUILD_VERSION: 0.4.7-alpha.2
+          COMMIT: ${{ github.sha }}
+        run: |
+          export PATH="$PATH:$(cygpath "$NODEJS_PATH")"
+
+          cmake -B build -G Ninja -S . -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+
+          cd build
+          cpack -G NSIS --config ./CPackConfig.cmake
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Apollo-installer
+          path: build/cpack_artifacts/*.exe
